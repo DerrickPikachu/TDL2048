@@ -77,6 +77,7 @@ public:
 	}
 	/**
 	 * get a 4-bit tile
+	 * The return value is the power value of two.
 	 */
 	int  at(int i) const { return (raw >> (i << 2)) & 0x0f; }
 	/**
@@ -474,6 +475,17 @@ public:
 		 */
 		for (int i = 0; i < 8; i++) {
 			board idx = 0xfedcba9876543210ull;
+			/**
+			 * This board indicate the index to be the board power value like this
+			 * +------------------------+
+			 * |   2^0   2^1   2^2   2^3|
+			 * |   2^4   2^5   2^6   2^7|
+			 * |   2^8   2^9  2^10  2^11|
+			 * |  2^12  2^13  2^14  2^15|
+			 * +------------------------+
+			 * The power of two is the index of the board. save the index value into the isomorphic array, then I can
+			 * use it to directly get the actual value on the board. (Board.get(index))
+			 */
 			if (i >= 4) idx.mirror();
 			idx.rotate(i);
 			for (int t : p) {
@@ -492,7 +504,7 @@ public:
 	 */
 	virtual float estimate(const board& b) const {
 		// TODO: Estimate Only the sate value of the current board.
-
+		return 0.0;
 	}
 
 	/**
@@ -500,7 +512,7 @@ public:
 	 */
 	virtual float update(const board& b, float u) {
 		// TODO: After estimate the new value, update the lookup table here.
-
+        return 0.0;
 	}
 
 	/**
@@ -538,11 +550,32 @@ public:
 		}
 	}
 
+    size_t indexof(const std::vector<int>& patt, const board& b) const {
+        size_t res = 0;
+
+        for (int boardIndex : patt) {
+            res = res << 4;
+            int powerValue = b.at(boardIndex);
+            res = res | powerValue;
+        }
+
+        return res;
+    }
+
 protected:
 
-	size_t indexof(const std::vector<int>& patt, const board& b) const {
-		// TODO: Return the index of the weight array, used the pattern get the value and find.
-	}
+//	size_t indexof(const std::vector<int>& patt, const board& b) const {
+//		// TODO: Return the index of the weight array, used the pattern get the value and find.
+//		size_t res = 0;
+//
+//        for (int boardIndex : patt) {
+//            res = res << 4;
+//            int powerValue = b.at(boardIndex);
+//            res = res | powerValue;
+//        }
+//
+//        return res;
+//	}
 
 	std::string nameof(const std::vector<int>& patt) const {
 		std::stringstream ss;
@@ -856,66 +889,75 @@ private:
 	std::vector<int> maxtile;
 };
 
+void tdlTraining() {
+    info << "TDL2048-Demo" << std::endl;
+    learning tdl;
+
+    // set the learning parameters
+    float alpha = 0.1;
+    size_t total = 100000;
+    unsigned seed;
+    __asm__ __volatile__ ("rdtsc" : "=a" (seed));
+    info << "alpha = " << alpha << std::endl;
+    info << "total = " << total << std::endl;
+    info << "seed = " << seed << std::endl;
+    std::srand(seed);
+
+    // initialize the features
+    tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5 }));
+    tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9 }));
+    tdl.add_feature(new pattern({ 0, 1, 2, 4, 5, 6 }));
+    tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
+
+    // restore the model from file
+    tdl.load("");
+
+    // train the model
+    std::vector<state> path;
+    path.reserve(20000);
+    for (size_t n = 1; n <= total; n++) {
+        board b;
+        // This score is not the score in the class State
+        // This score is just the score of game 2048
+        int score = 0;
+
+        // play an episode
+        debug << "begin episode" << std::endl;
+        b.init();
+        while (true) {
+            debug << "state" << std::endl << b;
+            state best = tdl.select_best_move(b);
+            path.push_back(best);
+
+            if (best.is_valid()) {
+                debug << "best " << best;
+                score += best.reward();
+                b = best.after_state();
+                b.popup();
+            } else {
+                break;
+            }
+        }
+        debug << "end episode" << std::endl;
+
+        // update by TD(0)
+        tdl.update_episode(path, alpha);
+        // Function make_statistic is just showing the information about the training, don't care about it.
+        tdl.make_statistic(n, b, score);
+        path.clear();
+    }
+
+    // store the model into file
+    tdl.save("");
+}
+
 int main(int argc, const char* argv[]) {
-	info << "TDL2048-Demo" << std::endl;
-	learning tdl;
+	board b = 0xfedcba9876543210ull;
+	std::cout << "board create" << std::endl;
+    pattern pat({0, 1, 2, 3});
+    size_t index = pat.indexof({2, 6, 10, 14}, b);
+    std::cout << std::hex << index << std::endl;
 
-	// set the learning parameters
-	float alpha = 0.1;
-	size_t total = 100000;
-	unsigned seed;
-	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
-	info << "alpha = " << alpha << std::endl;
-	info << "total = " << total << std::endl;
-	info << "seed = " << seed << std::endl;
-	std::srand(seed);
-
-	// initialize the features
-	tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5 }));
-	tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9 }));
-	tdl.add_feature(new pattern({ 0, 1, 2, 4, 5, 6 }));
-	tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
-
-	// restore the model from file
-	tdl.load("");
-
-	// train the model
-	std::vector<state> path;
-	path.reserve(20000);
-	for (size_t n = 1; n <= total; n++) {
-		board b;
-		// This score is not the score in the class State
-		// This score is just the score of game 2048
-		int score = 0;
-
-		// play an episode
-		debug << "begin episode" << std::endl;
-		b.init();
-		while (true) {
-			debug << "state" << std::endl << b;
-			state best = tdl.select_best_move(b);
-			path.push_back(best);
-
-			if (best.is_valid()) {
-				debug << "best " << best;
-				score += best.reward();
-				b = best.after_state();
-				b.popup();
-			} else {
-				break;
-			}
-		}
-		debug << "end episode" << std::endl;
-
-		// update by TD(0)
-		tdl.update_episode(path, alpha);
-		// Function make_statistic is just showing the information about the training, don't care about it.
-		tdl.make_statistic(n, b, score);
-		path.clear();
-	}
-
-	// store the model into file
-	tdl.save("");
-
+//    tdlTraining();
 	return 0;
 }
