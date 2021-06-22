@@ -503,8 +503,15 @@ public:
 	 * estimate the value of a given board
 	 */
 	virtual float estimate(const board& b) const {
-		// TODO: Estimate Only the sate value of the current board.
-		return 0.0;
+        // TODO: Estimate Only the sate value of the current board.
+        float estValue = 0;
+
+		for (int i = 0; i < isomorphic.size(); i++) {
+		    size_t index = indexof(isomorphic[i], b);
+		    estValue += weight[index];
+		}
+
+		return estValue;
 	}
 
 	/**
@@ -512,7 +519,16 @@ public:
 	 */
 	virtual float update(const board& b, float u) {
 		// TODO: After estimate the new value, update the lookup table here.
-        return 0.0;
+		float delta = u / isomorphic.size();
+		float updated = 0;
+
+		for (int i = 0; i < isomorphic.size(); i++) {
+		    size_t index = indexof(isomorphic[i], b);
+		    weight[index] += delta;
+		    updated += weight[index];
+		}
+
+        return updated;
 	}
 
 	/**
@@ -550,8 +566,11 @@ public:
 		}
 	}
 
-    size_t indexof(const std::vector<int>& patt, const board& b) const {
-        size_t res = 0;
+protected:
+
+	size_t indexof(const std::vector<int>& patt, const board& b) const {
+		// TODO: Return the index of the weight array, used the pattern get the value and find.
+		size_t res = 0;
 
         for (int boardIndex : patt) {
             res = res << 4;
@@ -560,22 +579,7 @@ public:
         }
 
         return res;
-    }
-
-protected:
-
-//	size_t indexof(const std::vector<int>& patt, const board& b) const {
-//		// TODO: Return the index of the weight array, used the pattern get the value and find.
-//		size_t res = 0;
-//
-//        for (int boardIndex : patt) {
-//            res = res << 4;
-//            int powerValue = b.at(boardIndex);
-//            res = res | powerValue;
-//        }
-//
-//        return res;
-//	}
+	}
 
 	std::string nameof(const std::vector<int>& patt) const {
 		std::stringstream ss;
@@ -629,7 +633,7 @@ public:
 public:
 
 	/**
-	 * assign a state (before state), then apply the action (defined in opcode)
+	 * assign fore state), then a state (be apply the action (defined in opcode)
 	 * return true if the action is valid for the given state
 	 */
 	bool assign(const board& b) {
@@ -952,11 +956,11 @@ void tdlTraining() {
 }
 
 int main(int argc, const char* argv[]) {
-	board b = 0xfedcba9876543210ull;
-	std::cout << "board create" << std::endl;
-    pattern pat({0, 1, 2, 3});
-    size_t index = pat.indexof({2, 6, 10, 14}, b);
-    std::cout << std::hex << index << std::endl;
+//	board b = 0xfedcba9876543210ull;
+//	std::cout << "board create" << std::endl;
+//    pattern pat({0, 1, 2, 3});
+//    size_t index = pat.indexof({2, 6, 10, 14}, b);
+//    std::cout << std::hex << index << std::endl;
 
 //    tdlTraining();
 	return 0;
