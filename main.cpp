@@ -26,6 +26,7 @@
 #include <sstream>
 #include <fstream>
 #include <cmath>
+#include <cstring>
 
 /**
  * output streams
@@ -447,7 +448,7 @@ protected:
 class pattern : public feature {
 public:
     // Call the feature constructor. The input parameter len is calculated by (numOfTuple * 4), because every tuple
-    // value need 4 bits to represent it. Parameter len gives the array weight enough size of memory. As the result, I
+    // value needs 4 bits to represent it. Parameter len gives the array weight enough size of memory. As the result, I
     // don't need to be worry about the size of weight.
 	pattern(const std::vector<int>& p, int iso = 8) : feature(1 << (p.size() * 4)), iso_last(iso) {
 		if (p.empty()) {
@@ -492,6 +493,8 @@ public:
 				isomorphic[i].push_back(idx.at(t));
 			}
 		}
+
+        memset(weight, 0, (1 << (p.size() * 4)) * sizeof(float));
 	}
 	pattern(const pattern& p) = delete;
 	virtual ~pattern() {}
@@ -506,7 +509,7 @@ public:
         // TODO: Estimate Only the sate value of the current board.
         float estValue = 0;
 
-		for (int i = 0; i < isomorphic.size(); i++) {
+		for (int i = 0; i < iso_last; i++) {
 		    size_t index = indexof(isomorphic[i], b);
 		    estValue += weight[index];
 		}
@@ -519,10 +522,10 @@ public:
 	 */
 	virtual float update(const board& b, float u) {
 		// TODO: After estimate the new value, update the lookup table here.
-		float delta = u / isomorphic.size();
+		float delta = u / iso_last;
 		float updated = 0;
 
-		for (int i = 0; i < isomorphic.size(); i++) {
+		for (int i = 0; i < iso_last; i++) {
 		    size_t index = indexof(isomorphic[i], b);
 		    weight[index] += delta;
 		    updated += weight[index];
@@ -748,9 +751,10 @@ public:
 		state after[4] = { 0, 1, 2, 3 }; // up, right, down, left
 		state* best = after;
 		for (state* move = after; move != after + 4; move++) {
+		    // Apply the move to the state
 			if (move->assign(b)) {
 				// TODO: Calculate the estimate value here, theta = theta + alpha * delta-V * V(after-state)
-
+                move->set_value(move->reward() + estimate(move->after_state()));
 				if (move->value() > best->value())
 					best = move;
 			} else {
@@ -758,6 +762,7 @@ public:
 			}
 			debug << "test " << *move;
 		}
+
 		return *best;
 	}
 
@@ -777,7 +782,14 @@ public:
 	 */
 	void update_episode(std::vector<state>& path, float alpha = 0.1) const {
 		// TODO: Update the policy, use the episode
+		float target = 0;
 
+		// The last one is the terminal state, I don't need to use it.
+        for (int i = path.size() - 2; i >= 0; i--) {
+            state& s = path[i];
+            float error = target + s.reward() - s.value();
+            target = s.reward() + update(s.after_state(), alpha * error);
+        }
 	}
 
 	/**
@@ -962,6 +974,6 @@ int main(int argc, const char* argv[]) {
 //    size_t index = pat.indexof({2, 6, 10, 14}, b);
 //    std::cout << std::hex << index << std::endl;
 
-//    tdlTraining();
+    tdlTraining();
 	return 0;
 }
