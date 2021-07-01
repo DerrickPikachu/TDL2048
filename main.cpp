@@ -766,6 +766,31 @@ public:
 		return *best;
 	}
 
+	state select_best_move(const board& b, std::vector<state>& path, float alpha = 0.1) const {
+	    state after[4] = {0, 1, 2, 3};
+	    state* best = after;
+
+	    // Choose best action
+	    for (state* move = after; move != after + 4; move++) {
+	        if (move->assign(b)) {
+	            move->set_value(move->reward() + estimate(move->after_state()));
+	            best = (move->value() > best->value())? move : best;
+	        } else {
+	            move->set_value(-std::numeric_limits<float>::max());
+	        }
+	    }
+
+	    // Update the previous after-state value immediately
+	    if (!path.empty() && best->value() != -std::numeric_limits<float>::max()) {
+	        state& previous = path.back();
+	        float target = best->value();
+	        float error = target + previous.reward() - previous.value();
+	        update(previous.after_state(), alpha * error);
+	    }
+
+	    return *best;
+	}
+
 	/**
 	 * update the tuple network by an episode
 	 *
@@ -910,8 +935,8 @@ void tdlTraining() {
     learning tdl;
 
     // set the learning parameters
-    float alpha = 0.1;
-    size_t total = 100000;
+    float alpha = 0.05;
+    size_t total = 200000;
     unsigned seed;
     __asm__ __volatile__ ("rdtsc" : "=a" (seed));
     info << "alpha = " << alpha << std::endl;
@@ -920,10 +945,13 @@ void tdlTraining() {
     std::srand(seed);
 
     // initialize the features
-    tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5 }));
-    tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9 }));
-    tdl.add_feature(new pattern({ 0, 1, 2, 4, 5, 6 }));
-    tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
+    tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5}));
+    tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9}));
+    tdl.add_feature(new pattern({ 0, 1, 4, 5, 8, 9}));
+    tdl.add_feature(new pattern({ 0, 1, 2, 3, 7, 11}));
+    tdl.add_feature(new pattern({ 4, 5, 6, 7, 11, 15}));
+//    tdl.add_feature(new pattern({0, 1, 2, 3, 4, 5, 6}));
+//    tdl.add_feature(new pattern({0, 4, 8, 12, 13, 14, 15}));
 
     // restore the model from file
     tdl.load("");
@@ -942,7 +970,8 @@ void tdlTraining() {
         b.init();
         while (true) {
             debug << "state" << std::endl << b;
-            state best = tdl.select_best_move(b);
+//            state best = tdl.select_best_move(b);
+            state best = tdl.select_best_move(b, path, alpha);
             path.push_back(best);
 
             if (best.is_valid()) {
@@ -957,7 +986,7 @@ void tdlTraining() {
         debug << "end episode" << std::endl;
 
         // update by TD(0)
-        tdl.update_episode(path, alpha);
+//        tdl.update_episode(path, alpha);
         // Function make_statistic is just showing the information about the training, don't care about it.
         tdl.make_statistic(n, b, score);
         path.clear();
